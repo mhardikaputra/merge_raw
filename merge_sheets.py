@@ -29,19 +29,31 @@ data1 = sheet1.get_all_values()
 data2 = sheet2.get_all_values()
 
 # Create DataFrames
-# For Sheet 1: Use index 0 as columns, and slice data from index 8808 (which is Row 8809 in Google Sheets)
+# For Sheet 1: Slice data from index 8808 (Row 8809) onwards for 2026 data
 df1 = pd.DataFrame(data1[8808:], columns=data1[0])
 
-# For Sheet 2: Use index 0 as columns, and slice data from index 1 (Row 2) onwards
+# For Sheet 2: Slice data from index 1 (Row 2) onwards
 df2 = pd.DataFrame(data2[1:], columns=data2[0])
 
 merged_df = pd.concat([df1, df2], ignore_index=True)
 
-# Remove completely blank rows
-# Google Sheets sends blank cells as empty strings. We convert those to None, drop rows where all columns are None, and convert back to empty strings.
-merged_df.replace('', None, inplace=True)
-merged_df.dropna(how='all', inplace=True)
+# --- STRICT CLEANUP BASED ON COLUMN B ---
+print("Cleaning out blank rows...")
+
+# Find the exact header name of Column B (which is index 1)
+col_b_name = merged_df.columns[1]
+
+# Convert Column B to string, strip away any accidental spaces, and only keep rows that have text
+merged_df = merged_df[
+    (merged_df[col_b_name].astype(str).str.strip() != '') & 
+    (merged_df[col_b_name].astype(str).str.lower() != 'nan') &
+    (merged_df[col_b_name].astype(str).str.lower() != 'none')
+]
+
+# Reset the row numbers after deleting the blank gap
+merged_df.reset_index(drop=True, inplace=True)
 merged_df.fillna('', inplace=True)
+# ----------------------------------------
 
 # 4. Resize the destination sheet to fit the incoming data
 total_rows_needed = len(merged_df) + 1  # +1 for the header row
