@@ -22,15 +22,15 @@ sheet1 = client.open_by_url("https://docs.google.com/spreadsheets/d/1a6gdPuWWeIq
 sheet2 = client.open_by_url("https://docs.google.com/spreadsheets/d/1s8Xzfr3OdD1Ty3HScdVUB9bNHQxXtwGf0N7HnztNFfM/edit?gid=1179090678#gid=1179090678").worksheet("RAW DATA")
 dest_sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1VfbKcNo8In9poUbsKKnZ-xjD3WZ3u0iXV6fKiR8OU6o/edit?gid=0#gid=0").worksheet("Merged Raw")
 
-# 3. Pull and merge data
-# Use get_all_values() instead of get_all_records() to bypass the strict header check
+# 3. Pull data (using get_all_values() to avoid the blank header error)
 data1 = sheet1.get_all_values()
 data2 = sheet2.get_all_values()
 
-# Create DataFrames: Use the first row (index 0) as headers, and the rest (index 1 onwards) as data
+# Create DataFrames (using the first row as headers, and the rest as data)
 df1 = pd.DataFrame(data1[1:], columns=data1[0])
 df2 = pd.DataFrame(data2[1:], columns=data2[0])
 
+# Combine the DataFrames
 merged_df = pd.concat([df1, df2], ignore_index=True)
 
 # 4. Upload to destination
