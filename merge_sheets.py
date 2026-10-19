@@ -7,15 +7,17 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 
 def parse_number(val):
-    if val is None or pd.isna(val):
-        return None
+    if val is None:
+        return ''
+    if not isinstance(val, (str, int, float)):
+        return val
     if isinstance(val, (int, float)):
         return val
     
     # 1. Strip surrounding quotes, apostrophes, and invisible spaces
     s = str(val).strip().strip("'").strip('"').replace('\xa0', '').replace('\u200b', '')
     if not s or s.lower() in ['nan', 'none', 'null', '']:
-        return None
+        return ''
     
     # 2. Strip currency symbols (Rp, $, etc.)
     clean_s = re.sub(r'^[Rp\$€\s]+', '', s, flags=re.IGNORECASE).strip()
@@ -62,6 +64,13 @@ def parse_number(val):
     # Return original string if it is plain text
     return val
 
+def apply_elementwise(df, func):
+    """Applies a function cell-by-cell across the entire DataFrame safely, regardless of duplicate column names."""
+    if hasattr(df, 'map'):
+        return df.map(func)
+    else:
+        return df.applymap(func)
+
 # 1. Load credentials securely from GitHub Secret
 creds_json = os.environ.get('GCP_CREDENTIALS')
 creds_dict = json.loads(creds_json)
@@ -89,23 +98,22 @@ df1 = pd.DataFrame(data1[8808:], columns=data1[0])
 df2 = pd.DataFrame(data2[1:], columns=data2[0])
 
 print("Converting text numbers to native floats...")
-for col in df1.columns:
-    df1[col] = df1[col].apply(parse_number)
-
-for col in df2.columns:
-    df2[col] = df2[col].apply(parse_number)
+df1 = apply_elementwise(df1, parse_number)
+df2 = apply_elementwise(df2, parse_number)
 
 merged_df = pd.concat([df1, df2], ignore_index=True)
 
-# Strict cleanup based on Column B
+# Strict cleanup based on Column B (using positional index iloc[:, 1])
 print("Cleaning out blank rows...")
-col_b_name = merged_df.columns[1]
+col_b_series = merged_df.iloc[:, 1]
 
-merged_df = merged_df[
-    (merged_df[col_b_name].astype(str).str.strip() != '') & 
-    (merged_df[col_b_name].astype(str).str.lower() != 'nan') &
-    (merged_df[col_b_name].astype(str).str.lower() != 'none')
-]
+valid_mask = (
+    (col_b_series.astype(str).str.strip() != '') & 
+    (col_b_series.astype(str).str.lower() != 'nan') &
+    (col_b_series.astype(str).str.lower() != 'none')
+)
+
+merged_df = merged_df[valid_mask]
 merged_df.reset_index(drop=True, inplace=True)
 
 # Prepare upload matrix preserving native float types
@@ -139,7 +147,6 @@ for i in range(0, len(upload_data), chunk_size):
     chunk = upload_data[i:i + chunk_size]
     start_row = i + 1
     
-    # value_input_option='USER_ENTERED' forces Google Sheets to evaluate numbers natively
     dest_sheet.update(range_name=f'A{start_row}', values=chunk, value_input_option='USER_ENTERED')
     print(f"Uploaded rows {start_row} to {start_row + len(chunk) - 1}")
     time.sleep(2)
