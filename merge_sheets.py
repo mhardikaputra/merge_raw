@@ -28,15 +28,25 @@ print("Downloading data...")
 data1 = sheet1.get_all_values()
 data2 = sheet2.get_all_values()
 
-df1 = pd.DataFrame(data1[1:], columns=data1[0])
+# Create DataFrames
+# For Sheet 1: Use index 0 as columns, and slice data from index 8808 (which is Row 8809 in Google Sheets)
+df1 = pd.DataFrame(data1[8808:], columns=data1[0])
+
+# For Sheet 2: Use index 0 as columns, and slice data from index 1 (Row 2) onwards
 df2 = pd.DataFrame(data2[1:], columns=data2[0])
+
 merged_df = pd.concat([df1, df2], ignore_index=True)
+
+# Remove completely blank rows
+# Google Sheets sends blank cells as empty strings. We convert those to None, drop rows where all columns are None, and convert back to empty strings.
+merged_df.replace('', None, inplace=True)
+merged_df.dropna(how='all', inplace=True)
+merged_df.fillna('', inplace=True)
 
 # 4. Resize the destination sheet to fit the incoming data
 total_rows_needed = len(merged_df) + 1  # +1 for the header row
 print(f"Resizing destination sheet to {total_rows_needed} rows...")
 
-# Get current row count and add rows if needed
 current_rows = dest_sheet.row_count
 if total_rows_needed > current_rows:
     dest_sheet.add_rows(total_rows_needed - current_rows)
