@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
@@ -22,18 +23,29 @@ sheet1 = client.open_by_url("https://docs.google.com/spreadsheets/d/1a6gdPuWWeIq
 sheet2 = client.open_by_url("https://docs.google.com/spreadsheets/d/1s8Xzfr3OdD1Ty3HScdVUB9bNHQxXtwGf0N7HnztNFfM/edit?gid=1179090678#gid=1179090678").worksheet("RAW DATA")
 dest_sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1VfbKcNo8In9poUbsKKnZ-xjD3WZ3u0iXV6fKiR8OU6o/edit?gid=0#gid=0").worksheet("Merged Raw")
 
-# 3. Pull data (using get_all_values() to avoid the blank header error)
+# 3. Pull data
+print("Downloading data...")
 data1 = sheet1.get_all_values()
 data2 = sheet2.get_all_values()
 
-# Create DataFrames (using the first row as headers, and the rest as data)
 df1 = pd.DataFrame(data1[1:], columns=data1[0])
 df2 = pd.DataFrame(data2[1:], columns=data2[0])
-
-# Combine the DataFrames
 merged_df = pd.concat([df1, df2], ignore_index=True)
 
-# 4. Upload to destination
+# 4. Upload to destination in chunks to prevent Google API timeouts
+print(f"Preparing to upload {len(merged_df)} rows...")
 upload_data = [merged_df.columns.values.tolist()] + merged_df.values.tolist()
 dest_sheet.clear()
-dest_sheet.update(range_name='A1', values=upload_data)
+
+chunk_size = 10000  # Upload 10,000 rows at a time
+for i in range(0, len(upload_data), chunk_size):
+    chunk = upload_data[i:i + chunk_size]
+    start_row = i + 1
+    
+    # Upload the chunk starting at the correct row (e.g., A1, A10001, A20001)
+    dest_sheet.update(range_name=f'A{start_row}', values=chunk)
+    
+    print(f"Uploaded rows {start_row} to {start_row + len(chunk) - 1}")
+    time.sleep(2)  # Pause for 2 seconds to avoid rate limiting
+
+print("Success! Sheets merged and uploaded.")
