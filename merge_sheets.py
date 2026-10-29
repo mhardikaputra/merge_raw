@@ -101,6 +101,9 @@ print("Converting text numbers to native floats...")
 df1 = apply_elementwise(df1, parse_number)
 df2 = apply_elementwise(df2, parse_number)
 
+df1["Source"] = "Rocket"
+df2["Source"] = "Papero"
+
 merged_df = pd.concat([df1, df2], ignore_index=True)
 
 # Strict cleanup based on Column B (using positional index iloc[:, 1])
